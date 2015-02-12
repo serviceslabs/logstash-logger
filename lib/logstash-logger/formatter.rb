@@ -37,6 +37,10 @@ module LogStashLogger
 
       event['host'] ||= HOST
 
+      LogStashLogger.config.custom_fields.each do |field, fn|
+        event[field] = fn.call()
+      end
+
       current_tags.each do |tag|
         event.tag(tag)
       end

@@ -21,9 +21,9 @@ Gem::Specification.new do |gem|
   gem.add_runtime_dependency 'logstash-event', '~> 1.2'
   gem.add_runtime_dependency 'multi_json'
   gem.add_runtime_dependency 'stud'
+  gem.add_runtime_dependency 'redic'
 
   gem.add_development_dependency 'rails'
-  gem.add_development_dependency 'redis'
   gem.add_development_dependency 'rspec', '>= 3'
   gem.add_development_dependency 'rake'
   gem.add_development_dependency 'pry'

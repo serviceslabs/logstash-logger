@@ -1,4 +1,4 @@
-require 'redis'
+require 'redic'
 require 'stud/buffer'
 
 module LogStashLogger
@@ -6,7 +6,7 @@ module LogStashLogger
     class Redis < Connectable
       include Stud::Buffer
 
-      DEFAULT_LIST = 'logstash'
+      DEFAULT_LIST = 'xxx'
 
       attr_accessor :list
 
@@ -14,25 +14,23 @@ module LogStashLogger
         super
         @list = opts.delete(:list) || DEFAULT_LIST
         @redis_options = opts
-
-        @batch_events = opts.fetch(:batch_events, 50)
-        @batch_timeout = opts.fetch(:batch_timeout, 5)
-
-        buffer_initialize max_items: @batch_events, max_interval: @batch_timeout
+        connect
+        reset_buffer_clock!
       end
 
       def connect
-        @io = ::Redis.new(@redis_options)
+        url = "redis://:#{@redis_options[:password]}@#{@redis_options[:host]}:6379/0"
+        @io = ::Redic.new(url)
       end
 
       def reconnect
-        @io.client.reconnect
+        connect
       end
 
       def with_connection
         connect unless @io
         yield
-      rescue ::Redis::InheritedError
+      rescue ::Exception
         reconnect
         retry
       rescue => e
@@ -41,28 +39,31 @@ module LogStashLogger
       end
 
       def write(message)
-        buffer_receive message, @list
-        buffer_flush(force: true) if @sync
+        @io.queue('RPUSH', @list, message)
+        if buffer_timed_out?
+          @io.commit
+          reset_buffer_clock!
+        end
       end
 
       def close
-        buffer_flush(final: true)
-        @io && @io.quit
+        @io.commit
       rescue => e
         warn "#{self.class} - #{e.class} - #{e.message}"
       ensure
         @io = nil
       end
 
+      def reset_buffer_clock!
+        @last_commit_time = Time.now.to_f
+      end
+
+      def buffer_timed_out?
+        (Time.now.to_f - @last_commit_time) >= 2.0
+      end
+
       def flush(*args)
-        if args.empty?
-          buffer_flush
-        else
-          messages, list = *args
-          with_connection do
-            @io.rpush(list, messages)
-          end
-        end
+        @io.commit if @io.buffer.length  >= 5
       end
 
     end

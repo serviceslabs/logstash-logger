@@ -6,7 +6,7 @@ module LogStashLogger
     class Redis < Connectable
       include Stud::Buffer
 
-      DEFAULT_LIST = 'xxx'
+      DEFAULT_LIST = 'logstash'
 
       attr_accessor :list
 

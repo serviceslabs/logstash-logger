@@ -18,6 +18,20 @@ module LogStashLogger
         @io.binmode
         @io.sync = self.sync
       end
+
+      def write(message)
+        raw_message = JSON.parse(message)['message']
+        @io.write raw_message
+        @io.write "\n"
+      rescue JSON::ParserError
+        @io.write message
+        @io.write "\n"
+      end
+
+      def commit
+        flush
+      end
+
     end
   end
 end

@@ -46,6 +46,7 @@ module LogStashLogger
 
     initializer :logstash_logger, before: :initialize_logger do |app|
       LogStashLogger.setup(app)
+      app.middleware.insert_after Rails::Rack::Logger, LogStashLogger::Middleware
     end
   end
 end

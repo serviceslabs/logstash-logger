@@ -1,4 +1,4 @@
-require 'redic'
+require 'redis'
 require 'stud/buffer'
 
 module LogStashLogger
@@ -14,36 +14,42 @@ module LogStashLogger
         super
         @list = opts.delete(:list) || DEFAULT_LIST
         @redis_options = opts
+        @buffer = []
+        @mutex = Mutex.new
         connect
         reset_buffer_clock!
       end
 
       def connect
-        url = "redis://:#{@redis_options[:password]}@#{@redis_options[:host]}:6379/0"
-        @io = ::Redic.new(url)
+        return if @io
+        @io = ::Redis.new(@redis_options)
       end
 
       def reconnect
-        connect
+        @io.client.reconnect
       end
 
       def with_connection
         connect unless @io
         yield
-      rescue ::Exception
+      rescue ::Redis::InheritedError
         reconnect
-        retry
       rescue => e
         warn "#{self.class} - #{e.class} - #{e.message}"
         @io = nil
       end
 
       def write(message)
-        @io.queue('RPUSH', @list, message)
-        if buffer_timed_out?
-          @io.commit
-          reset_buffer_clock!
+        @mutex.synchronize do
+          @buffer << message
+          if buffer_timed_out?
+            @io.commit
+            reset_buffer_clock!
+          end
         end
+      end
+
+      def flush
       end
 
       def close
@@ -59,11 +65,18 @@ module LogStashLogger
       end
 
       def buffer_timed_out?
-        (Time.now.to_f - @last_commit_time) >= 2.0
+        (Time.now.to_f - @last_commit_time) >= 3.0
       end
 
-      def flush(*args)
-        @io.commit if @io.buffer.length  >= 5
+      def commit
+        @mutex.synchronize do
+          @io.pipelined do
+            @buffer.each do |msg|
+              @io.rpush @list, msg
+            end
+          end
+          @buffer.clear
+        end
       end
 
     end

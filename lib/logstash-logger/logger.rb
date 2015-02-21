@@ -23,6 +23,10 @@ module LogStashLogger
       def flush
         !!@device.flush
       end
+
+      def commit
+        !!@device.commit
+      end
     end
   end
 

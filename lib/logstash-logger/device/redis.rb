@@ -7,6 +7,7 @@ module LogStashLogger
       include Stud::Buffer
 
       DEFAULT_LIST = 'logstash'
+      BUFFER_SIZE = 5
 
       attr_accessor :list
 
@@ -17,7 +18,6 @@ module LogStashLogger
         @buffer = []
         @mutex = Mutex.new
         connect
-        reset_buffer_clock!
       end
 
       def connect
@@ -40,32 +40,23 @@ module LogStashLogger
       end
 
       def write(message)
-        @mutex.synchronize do
-          @buffer << message
-          if buffer_timed_out?
-            @io.commit
-            reset_buffer_clock!
-          end
-        end
+        @buffer << message
+        commit if buffer_overflow?
       end
 
       def flush
       end
 
       def close
-        @io.commit
+        @io.close
       rescue => e
         warn "#{self.class} - #{e.class} - #{e.message}"
       ensure
         @io = nil
       end
 
-      def reset_buffer_clock!
-        @last_commit_time = Time.now.to_f
-      end
-
-      def buffer_timed_out?
-        (Time.now.to_f - @last_commit_time) >= 3.0
+      def buffer_overflow?
+        @buffer.size > BUFFER_SIZE
       end
 
       def commit

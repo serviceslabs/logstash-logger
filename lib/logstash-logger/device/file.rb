@@ -20,8 +20,10 @@ module LogStashLogger
       end
 
       def write(message)
-        raw_message = JSON.parse(message)['message']
-        @io.write raw_message
+        json = JSON.parse(message)
+        raw_message = json['message']
+        uuid = json.try(:[], 'properties').try(:[], 'x_request_id')
+        @io.write '[%s] %s' % [uuid, raw_message]
         @io.write "\n"
       rescue JSON::ParserError
         @io.write message
